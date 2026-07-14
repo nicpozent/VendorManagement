@@ -1,0 +1,25 @@
+# .NET
+bin/
+obj/
+*.user
+appsettings.*.local.json
+
+# Node
+node_modules/
+dist/
+.vite/
+*.local
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.vs/
+.idea/
+.DS_Store
+*.swp
+
+# Logs
+*.log

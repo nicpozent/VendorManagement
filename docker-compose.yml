@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: vendorreview
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
+      POSTGRES_DB: vendorreview
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vendorreview"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend/src/VendorReview.Api
+    environment:
+      ConnectionStrings__Default: "Host=db;Port=5432;Database=vendorreview;Username=vendorreview;Password=${POSTGRES_PASSWORD:-devpassword}"
+      # ---- Entra / Microsoft Graph (leave blank to run in dev-auth + mock-Graph mode) ----
+      AzureAd__Instance: "https://login.microsoftonline.com/"
+      AzureAd__TenantId: "${AZURE_TENANT_ID:-}"
+      AzureAd__ClientId: "${AZURE_API_CLIENT_ID:-}"
+      AzureAd__ClientSecret: "${AZURE_API_CLIENT_SECRET:-}"
+      AzureAd__Audience: "${AZURE_API_AUDIENCE:-}"
+      Graph__SenderUserId: "${GRAPH_SENDER_USER_ID:-}"
+      Reminders__Enabled: "true"
+      Cors__Origins__0: "http://localhost:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "5080:8080"
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        VITE_ENTRA_CLIENT_ID: "${VITE_ENTRA_CLIENT_ID:-}"
+        VITE_ENTRA_TENANT_ID: "${VITE_ENTRA_TENANT_ID:-}"
+        VITE_API_SCOPE: "${VITE_API_SCOPE:-}"
+        VITE_API_BASE: "/api"
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+
+volumes:
+  pgdata:
