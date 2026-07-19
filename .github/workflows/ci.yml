@@ -73,15 +73,11 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@v4
+      - name: Install Trivy
+        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
       # Full report → Security tab (does not fail the build).
-      - name: Trivy scan (report)
-        uses: aquasecurity/trivy-action@0.24.0
-        with:
-          scan-type: fs
-          scanners: vuln,secret,misconfig
-          format: sarif
-          output: trivy-results.sarif
-          severity: CRITICAL,HIGH
+      - name: Trivy scan (report SARIF)
+        run: trivy fs --scanners vuln,secret,misconfig --severity CRITICAL,HIGH --format sarif -o trivy-results.sarif .
       - name: Upload SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@v3
@@ -89,10 +85,4 @@ jobs:
           sarif_file: trivy-results.sarif
       # Gate: fail only on fixable CRITICAL vulns / secrets to avoid noisy blocks.
       - name: Trivy gate (fixable CRITICAL)
-        uses: aquasecurity/trivy-action@0.24.0
-        with:
-          scan-type: fs
-          scanners: vuln,secret
-          severity: CRITICAL
-          ignore-unfixed: true
-          exit-code: "1"
+        run: trivy fs --scanners vuln,secret --severity CRITICAL --ignore-unfixed --exit-code 1 .
