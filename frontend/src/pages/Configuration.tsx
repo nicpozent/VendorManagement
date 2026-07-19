@@ -7,8 +7,9 @@ import { SectionsTab } from "./config/SectionsTab";
 import { PoliciesTab } from "./config/PoliciesTab";
 import { SettingsTab } from "./config/SettingsTab";
 import { DirectoryTab } from "./config/DirectoryTab";
+import { AuditTab } from "./config/AuditTab";
 
-type TabKey = "categories" | "entities" | "sections" | "policies" | "settings" | "directory";
+type TabKey = "categories" | "entities" | "sections" | "policies" | "settings" | "directory" | "activity";
 
 const TABS: { key: TabKey; label: string; adminOnly?: boolean }[] = [
   { key: "categories", label: "Vendor categories" },
@@ -17,6 +18,7 @@ const TABS: { key: TabKey; label: string; adminOnly?: boolean }[] = [
   { key: "policies", label: "Policy library" },
   { key: "settings", label: "Settings" },
   { key: "directory", label: "Directory", adminOnly: true },
+  { key: "activity", label: "Activity", adminOnly: true },
 ];
 
 export function Configuration() {
@@ -56,6 +58,7 @@ export function Configuration() {
       {tab === "policies" && <PoliciesTab />}
       {tab === "settings" && <SettingsTab />}
       {tab === "directory" && <DirectoryTab />}
+      {tab === "activity" && <AuditTab />}
     </div>
   );
 }

@@ -145,7 +145,7 @@ public static class ReviewEndpoints
 
         // Sign-off: leadership sets the review to Approved/Rejected from the computed verdict.
         g.MapPost("/{id:guid}/signoff", async (Guid id, AppDbContext db, CurrentUser me,
-            VerdictEngine engine, CancellationToken ct) =>
+            VerdictEngine engine, AuditLog audit, CancellationToken ct) =>
         {
             if (!me.IsLeadership) return Results.Forbid();
             var r = await LoadFull(db, id, ct);
@@ -155,12 +155,14 @@ public static class ReviewEndpoints
             r.Status = v.Verdict == "DoNotProceed" ? ReviewStatus.Rejected : ReviewStatus.Approved;
             r.UpdatedUtc = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
+            await audit.WriteAsync("review.signoff", "review", r.Id.ToString(), r.VendorName,
+                $"Signed off as {r.Status} (verdict {v.VerdictLabel})", ct);
             return Results.Ok(r.ToDetail(v));
         });
 
         // Finish & archive: capture an immutable memo snapshot.
         g.MapPost("/{id:guid}/finish", async (Guid id, AppDbContext db, CurrentUser me,
-            VerdictEngine engine, MemoBuilder memo, CancellationToken ct) =>
+            VerdictEngine engine, MemoBuilder memo, AuditLog audit, CancellationToken ct) =>
         {
             var r = await LoadFull(db, id, ct);
             if (r is null) return Results.NotFound();
@@ -180,6 +182,8 @@ public static class ReviewEndpoints
             r.Status = ReviewStatus.Finished;
             r.UpdatedUtc = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
+            await audit.WriteAsync("review.finish", "review", r.Id.ToString(), r.VendorName,
+                $"Finished & archived v{version} (verdict {v.VerdictLabel})", ct);
             return Results.Ok(r.ToDetail(v));
         });
 
@@ -197,7 +201,7 @@ public static class ReviewEndpoints
         // Send an approval reminder now (owner + approvers), via MS Graph.
         // Rate-limited per user; recipients filtered through the mail allowlist.
         g.MapPost("/{id:guid}/remind", async (Guid id, AppDbContext db, CurrentUser me,
-            VerdictEngine engine, IGraphService graph, MailGuard mail, CancellationToken ct) =>
+            VerdictEngine engine, IGraphService graph, MailGuard mail, AuditLog audit, CancellationToken ct) =>
         {
             var r = await LoadFull(db, id, ct);
             if (r is null) return Results.NotFound();
@@ -223,6 +227,8 @@ public static class ReviewEndpoints
                 $"<p>Reminder to action <strong>{r.VendorName}</strong> — {v.VerdictLabel}. {v.VerdictReason}</p>", ct);
             r.LastReminderUtc = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
+            await audit.WriteAsync("review.remind", "review", r.Id.ToString(), r.VendorName,
+                $"Reminder to {to.Count} recipient(s){(graph.IsConfigured ? "" : " (mock)")}", ct);
             return Results.Ok(new { sent, mock = !graph.IsConfigured, to, cc, blocked });
         }).RequireRateLimiting("mail");
 

@@ -95,5 +95,9 @@ public record ImportResultDto(int Imported, int Updated, int Skipped, List<AppUs
 
 public record UserRoleUpdateDto(string Role, bool Enabled);
 
+// ---- Audit ----
+public record AuditEventDto(long Id, DateTime Utc, string ActorName, string ActorRole,
+    string Action, string TargetType, string? TargetId, string? TargetName, string? Summary);
+
 // ---- Me ----
 public record MeDto(string ObjectId, string DisplayName, string? Email, string Role, bool IsAdmin);

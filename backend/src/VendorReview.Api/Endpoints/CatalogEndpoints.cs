@@ -202,18 +202,23 @@ public static class CatalogEndpoints
         g.MapGet("", async (AppDbContext db, CancellationToken ct) =>
             Results.Ok(new SettingsDto(await SettingsRepo.BlockerCapsVerdict(db, ct))));
 
-        g.MapPut("", async (SettingsDto dto, AppDbContext db, CurrentUser me, CancellationToken ct) =>
+        g.MapPut("", async (SettingsDto dto, AppDbContext db, CurrentUser me, AuditLog audit, CancellationToken ct) =>
         {
             if (!me.IsAdmin) return Results.Forbid();
             await SettingsRepo.SetBlockerCapsVerdict(db, dto.BlockerCapsVerdict, ct);
             await db.SaveChangesAsync(ct);
+            await audit.WriteAsync("settings.update", "settings", "blockerCapsVerdict", null,
+                $"Blocker-caps-verdict = {dto.BlockerCapsVerdict}", ct);
             return Results.Ok(new SettingsDto(dto.BlockerCapsVerdict));
         });
 
-        g.MapPost("/reset", async (AppDbContext db, CurrentUser me, CancellationToken ct) =>
+        g.MapPost("/reset", async (AppDbContext db, CurrentUser me, AuditLog audit, CancellationToken ct) =>
         {
             if (!me.IsAdmin) return Results.Forbid();
             await SeedData.ResetAsync(db, ct);
+            // Re-record the reset itself after the wipe so the destructive action is traceable.
+            await audit.WriteAsync("settings.reset", "system", null, null,
+                "Reset all tool data to sample data", ct);
             return Results.Ok(new { message = "Sample data restored." });
         });
     }

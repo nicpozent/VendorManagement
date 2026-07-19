@@ -1,6 +1,6 @@
 import { authBridge, ENTRA_CONFIGURED } from "./authBridge";
 import type {
-  AppUser, ArchiveDetail, ArchiveItem, Category, CompareMatrix, Entity, ImportKind,
+  AppUser, ArchiveDetail, ArchiveItem, AuditEvent, Category, CompareMatrix, Entity, ImportKind,
   ImportResult, ImportSource, GraphMember, Me, Policy, ReviewDetail, ReviewListItem,
   ScanResult, Section, Settings, Vendor,
 } from "./types";
@@ -115,4 +115,5 @@ export const api = {
   importUsers: (b: { sourceId: string; sourceKind: string; sourceName: string; defaultRole: string }) =>
     request<ImportResult>("POST", "/admin/import", b),
   runReminders: () => request<{ attempted: number }>("POST", "/admin/reminders/run"),
+  audit: (take = 100) => request<AuditEvent[]>("GET", `/admin/audit?take=${take}`),
 };

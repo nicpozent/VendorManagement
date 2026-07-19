@@ -20,6 +20,8 @@ classes. Remaining work is pre-production hardening.
 | Dev-auth fallback could run open in a misconfigured deploy | The API now **fails closed** — it refuses to start outside `Development` unless `Auth:AllowDevFallback=true` is explicitly set. |
 | NDA / reminder mail could be sent to arbitrary addresses at any volume | Both endpoints are **per-user rate-limited** (`Mail:RateLimitPerWindow` / `RateWindowMinutes`) and recipients are checked against a **domain allowlist** (`Mail:AllowedRecipientDomains`); the background sweep filters too. |
 | Dependency drift | **Dependabot** enabled for NuGet, npm and GitHub Actions (`.github/dependabot.yml`). |
+| No CI security gate | **CI pipeline** (`.github/workflows/ci.yml`): build/lint/typecheck + **CodeQL** (SAST) + **Trivy** (SCA/secret/IaC) on every push and PR. |
+| No record of sensitive actions | **Append-only audit log** of sign-off, finish, NDA/reminder mail, directory import, role changes and settings/reset (actor, role, target, summary); admins-only **Activity** view (`GET /admin/audit`). |
 
 ## Highest open item (Entra tenant action, not code)
 
@@ -30,9 +32,8 @@ secret to a **managed identity or certificate credential** in Key Vault.
 
 ## Remaining hardening (tracked in the report)
 
-Append-only **audit log** for sign-off / verdict / import / NDA · **at-rest encryption** of personal
-data + DPIA/ROPA · a **CI pipeline** with SAST/SCA/secret-scan gates · TLS/HSTS enforcement · managed
-Postgres with PITR/replicas.
+**At-rest encryption** of personal data + DPIA/ROPA · SIEM export of the audit trail · TLS/HSTS
+enforcement · managed Postgres with PITR/replicas.
 
 ## Relevant configuration
 

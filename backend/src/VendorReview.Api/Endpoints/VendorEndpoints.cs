@@ -45,7 +45,7 @@ public static class VendorEndpoints
         // Send NDA via MS Graph; the requesting user is cc'd. Marks the vendor "Requested".
         // Rate-limited per user; recipient domain checked against the mail allowlist.
         g.MapPost("/{id:guid}/send-nda", async (Guid id, AppDbContext db, CurrentUser me,
-            IGraphService graph, MailGuard mail, CancellationToken ct) =>
+            IGraphService graph, MailGuard mail, AuditLog audit, CancellationToken ct) =>
         {
             var v = await db.Vendors.FindAsync(new object?[] { id }, ct);
             if (v is null) return Results.NotFound();
@@ -63,6 +63,8 @@ public static class VendorEndpoints
 
             if (v.Nda == NdaStatus.None) v.Nda = NdaStatus.Requested;
             await db.SaveChangesAsync(ct);
+            await audit.WriteAsync("vendor.nda.send", "vendor", v.Id.ToString(), v.Name,
+                $"NDA sent to {v.ContactEmail}{(graph.IsConfigured ? "" : " (mock)")}", ct);
             return Results.Ok(new SendNdaResultDto(
                 $"NDA sent to {v.ContactEmail}" + (graph.IsConfigured ? "" : " (mock — Graph not configured)"),
                 me.Email ?? "you"));
