@@ -65,6 +65,7 @@ public class ReminderService : BackgroundService
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var graph = scope.ServiceProvider.GetRequiredService<IGraphService>();
         var engine = scope.ServiceProvider.GetRequiredService<VerdictEngine>();
+        var mail = scope.ServiceProvider.GetRequiredService<MailGuard>();
 
         bool caps = await SettingsRepo.BlockerCapsVerdict(db, ct);
         var cutoff = DateTime.UtcNow.AddHours(-_opt.MinHoursBetweenReminders);
@@ -95,14 +96,16 @@ public class ReminderService : BackgroundService
                 .Select(e => e!)
                 .ToList();
 
-            var to = new List<string>();
-            if (!string.IsNullOrWhiteSpace(r.OwnerEmail)) to.Add(r.OwnerEmail!);
-            to.AddRange(approverEmails);
+            var candidates = new List<string>();
+            if (!string.IsNullOrWhiteSpace(r.OwnerEmail)) candidates.Add(r.OwnerEmail!);
+            candidates.AddRange(approverEmails);
+            var (to, _) = mail.Partition(candidates);
             if (to.Count == 0) continue;
 
             var subject = $"Action needed: vendor review — {r.VendorName} ({v.VerdictLabel})";
             var html = BuildBody(r, v);
-            await graph.SendMailAsync(to, cc: approverEmails, subject, html, ct);
+            var (ccApprovers, _) = mail.Partition(approverEmails);
+            await graph.SendMailAsync(to, cc: ccApprovers, subject, html, ct);
             r.LastReminderUtc = DateTime.UtcNow;
             attempted++;
         }

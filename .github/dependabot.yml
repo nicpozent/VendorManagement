@@ -1,0 +1,32 @@
+version: 2
+updates:
+  # Backend — .NET / NuGet
+  - package-ecosystem: "nuget"
+    directory: "/backend/src/VendorReview.Api"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    labels: ["dependencies", "backend"]
+    groups:
+      microsoft:
+        patterns: ["Microsoft.*", "Azure.*", "Npgsql*"]
+
+  # Frontend — npm
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    labels: ["dependencies", "frontend"]
+    groups:
+      react:
+        patterns: ["react", "react-dom", "react-router-dom"]
+      dev-tooling:
+        patterns: ["*eslint*", "typescript", "vite", "@vitejs/*", "@types/*"]
+
+  # GitHub Actions (applies once workflows are added)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "ci"]

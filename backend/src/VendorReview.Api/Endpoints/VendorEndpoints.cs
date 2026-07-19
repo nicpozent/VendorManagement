@@ -43,13 +43,16 @@ public static class VendorEndpoints
         });
 
         // Send NDA via MS Graph; the requesting user is cc'd. Marks the vendor "Requested".
+        // Rate-limited per user; recipient domain checked against the mail allowlist.
         g.MapPost("/{id:guid}/send-nda", async (Guid id, AppDbContext db, CurrentUser me,
-            IGraphService graph, CancellationToken ct) =>
+            IGraphService graph, MailGuard mail, CancellationToken ct) =>
         {
             var v = await db.Vendors.FindAsync(new object?[] { id }, ct);
             if (v is null) return Results.NotFound();
             if (string.IsNullOrWhiteSpace(v.ContactEmail))
                 return Results.BadRequest(new { message = "Vendor has no contact email." });
+            if (!mail.IsAllowed(v.ContactEmail))
+                return Results.BadRequest(new { message = $"Recipient domain is not on the mail allowlist: {v.ContactEmail}" });
 
             var cc = string.IsNullOrWhiteSpace(me.Email) ? Array.Empty<string>() : new[] { me.Email! };
             await graph.SendMailAsync(
@@ -63,6 +66,6 @@ public static class VendorEndpoints
             return Results.Ok(new SendNdaResultDto(
                 $"NDA sent to {v.ContactEmail}" + (graph.IsConfigured ? "" : " (mock — Graph not configured)"),
                 me.Email ?? "you"));
-        });
+        }).RequireRateLimiting("mail");
     }
 }

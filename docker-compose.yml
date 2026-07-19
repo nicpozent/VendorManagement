@@ -27,6 +27,11 @@ services:
       AzureAd__ClientSecret: "${AZURE_API_CLIENT_SECRET:-}"
       AzureAd__Audience: "${AZURE_API_AUDIENCE:-}"
       Graph__SenderUserId: "${GRAPH_SENDER_USER_ID:-}"
+      # DEV/DEMO ONLY: allow the open dev-auth fallback when no Entra is configured.
+      # Set to "false" (and configure AzureAd above) for any real deployment.
+      Auth__AllowDevFallback: "${AUTH_ALLOW_DEV_FALLBACK:-true}"
+      # Restrict outbound NDA/reminder recipients in production, e.g. birgma.com,biltema.com
+      Mail__AllowedRecipientDomains__0: "${MAIL_ALLOWED_DOMAIN_0:-}"
       Reminders__Enabled: "true"
       Cors__Origins__0: "http://localhost:8080"
     depends_on:

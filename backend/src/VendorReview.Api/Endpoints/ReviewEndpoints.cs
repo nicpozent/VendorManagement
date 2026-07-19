@@ -195,8 +195,9 @@ public static class ReviewEndpoints
         });
 
         // Send an approval reminder now (owner + approvers), via MS Graph.
+        // Rate-limited per user; recipients filtered through the mail allowlist.
         g.MapPost("/{id:guid}/remind", async (Guid id, AppDbContext db, CurrentUser me,
-            VerdictEngine engine, IGraphService graph, CancellationToken ct) =>
+            VerdictEngine engine, IGraphService graph, MailGuard mail, CancellationToken ct) =>
         {
             var r = await LoadFull(db, id, ct);
             if (r is null) return Results.NotFound();
@@ -206,19 +207,24 @@ public static class ReviewEndpoints
             var approverEmails = await db.AppUsers
                 .Where(u => u.Enabled && (u.Role == AppRole.Cfo || u.Role == AppRole.CioCto) && u.Email != null)
                 .Select(u => u.Email!).ToListAsync(ct);
-            var to = new List<string>();
-            if (!string.IsNullOrWhiteSpace(r.OwnerEmail)) to.Add(r.OwnerEmail!);
-            to.AddRange(approverEmails);
+            var recipients = new List<string>();
+            if (!string.IsNullOrWhiteSpace(r.OwnerEmail)) recipients.Add(r.OwnerEmail!);
+            recipients.AddRange(approverEmails);
+
+            var (to, blocked) = mail.Partition(recipients);
+            if (to.Count == 0)
+                return Results.BadRequest(new { message = "No reminder recipients pass the mail allowlist.", blocked });
+
             var cc = new List<string>();
-            if (!string.IsNullOrWhiteSpace(me.Email)) cc.Add(me.Email!); // requester cc'd
+            if (!string.IsNullOrWhiteSpace(me.Email) && mail.IsAllowed(me.Email)) cc.Add(me.Email!); // requester cc'd
 
             var sent = await graph.SendMailAsync(to, cc,
                 $"Reminder: vendor review — {r.VendorName} ({v.VerdictLabel})",
                 $"<p>Reminder to action <strong>{r.VendorName}</strong> — {v.VerdictLabel}. {v.VerdictReason}</p>", ct);
             r.LastReminderUtc = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
-            return Results.Ok(new { sent, mock = !graph.IsConfigured, to, cc });
-        });
+            return Results.Ok(new { sent, mock = !graph.IsConfigured, to, cc, blocked });
+        }).RequireRateLimiting("mail");
 
         g.MapDelete("/{id:guid}", async (Guid id, AppDbContext db, CurrentUser me, CancellationToken ct) =>
         {
