@@ -21,6 +21,7 @@ public class AppDbContext : DbContext
     public DbSet<ArchivedReview> ArchivedReviews => Set<ArchivedReview>();
     public DbSet<Setting> Settings => Set<Setting>();
     public DbSet<AppUser> AppUsers => Set<AppUser>();
+    public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -54,5 +55,6 @@ public class AppDbContext : DbContext
             .HasForeignKey(i => i.ReviewSectionScoreId).OnDelete(DeleteBehavior.Cascade);
 
         b.Entity<AppUser>().HasIndex(u => u.EntraObjectId).IsUnique();
+        b.Entity<AuditEvent>().HasIndex(a => a.Utc);
     }
 }

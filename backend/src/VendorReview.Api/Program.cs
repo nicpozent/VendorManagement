@@ -68,6 +68,7 @@ builder.Services.AddRateLimiter(o =>
 // ---- App services ----
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<CurrentUser>();
+builder.Services.AddScoped<AuditLog>();
 builder.Services.AddScoped<VerdictEngine>();
 builder.Services.AddScoped<IntakeScanner>();
 builder.Services.AddSingleton<MemoBuilder>();

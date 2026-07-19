@@ -152,6 +152,26 @@ public class ArchivedReview
     public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
 }
 
+/// <summary>
+/// Append-only audit record of a security-sensitive action (sign-off, finish,
+/// NDA/reminder mail, directory import, role change, settings change). Written by
+/// <see cref="Services.AuditLog"/>; never updated or deleted through the API.
+/// </summary>
+public class AuditEvent
+{
+    public long Id { get; set; }
+    public DateTime Utc { get; set; } = DateTime.UtcNow;
+    [MaxLength(100)] public string ActorObjectId { get; set; } = "";
+    [MaxLength(200)] public string ActorName { get; set; } = "";
+    [MaxLength(40)] public string ActorRole { get; set; } = "";
+    /// <summary>Dotted action key, e.g. "review.signoff", "vendor.nda.send".</summary>
+    [MaxLength(80)] public string Action { get; set; } = "";
+    [MaxLength(60)] public string TargetType { get; set; } = "";
+    [MaxLength(100)] public string? TargetId { get; set; }
+    [MaxLength(300)] public string? TargetName { get; set; }
+    [MaxLength(600)] public string? Summary { get; set; }
+}
+
 /// <summary>Application setting (single-row config lives here as key/value).</summary>
 public class Setting
 {

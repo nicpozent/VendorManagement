@@ -118,3 +118,9 @@ export interface ImportResult {
   users: AppUser[]; warning: string | null;
 }
 export type ImportKind = "group" | "servicePrincipal" | "application";
+
+export interface AuditEvent {
+  id: number; utc: string; actorName: string; actorRole: string;
+  action: string; targetType: string; targetId: string | null;
+  targetName: string | null; summary: string | null;
+}

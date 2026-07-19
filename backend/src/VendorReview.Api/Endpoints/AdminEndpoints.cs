@@ -20,6 +20,15 @@ public static class AdminEndpoints
         g.MapGet("/graph-status", (IGraphService graph) =>
             Results.Ok(new { configured = graph.IsConfigured }));
 
+        // Append-only audit trail of sensitive actions (admins only).
+        g.MapGet("/audit", async (int? take, AppDbContext db, CurrentUser me, CancellationToken ct) =>
+        {
+            if (!me.IsAdmin) return Results.Forbid();
+            var n = Math.Clamp(take ?? 100, 1, 500);
+            var events = await db.AuditEvents.OrderByDescending(a => a.Id).Take(n).ToListAsync(ct);
+            return Results.Ok(events.Select(a => a.ToDto()).ToList());
+        });
+
         // ---- Imported users ----
         g.MapGet("/users", async (AppDbContext db, CurrentUser me, CancellationToken ct) =>
         {
@@ -29,7 +38,7 @@ public static class AdminEndpoints
         });
 
         g.MapPut("/users/{id:guid}", async (Guid id, UserRoleUpdateDto dto, AppDbContext db,
-            CurrentUser me, CancellationToken ct) =>
+            CurrentUser me, AuditLog audit, CancellationToken ct) =>
         {
             if (!me.IsAdmin) return Results.Forbid();
             var u = await db.AppUsers.FindAsync(new object?[] { id }, ct);
@@ -37,16 +46,21 @@ public static class AdminEndpoints
             u.Role = Mapping.ParseEnum(dto.Role, u.Role);
             u.Enabled = dto.Enabled;
             await db.SaveChangesAsync(ct);
+            await audit.WriteAsync("admin.user.update", "user", u.Id.ToString(), u.DisplayName,
+                $"Role {u.Role}, {(u.Enabled ? "enabled" : "disabled")}", ct);
             return Results.Ok(u.ToDto());
         });
 
-        g.MapDelete("/users/{id:guid}", async (Guid id, AppDbContext db, CurrentUser me, CancellationToken ct) =>
+        g.MapDelete("/users/{id:guid}", async (Guid id, AppDbContext db, CurrentUser me,
+            AuditLog audit, CancellationToken ct) =>
         {
             if (!me.IsAdmin) return Results.Forbid();
             var u = await db.AppUsers.FindAsync(new object?[] { id }, ct);
             if (u is null) return Results.NotFound();
             db.AppUsers.Remove(u);
             await db.SaveChangesAsync(ct);
+            await audit.WriteAsync("admin.user.delete", "user", u.Id.ToString(), u.DisplayName,
+                "Removed imported user", ct);
             return Results.NoContent();
         });
 
@@ -67,7 +81,7 @@ public static class AdminEndpoints
         });
 
         g.MapPost("/import", async (ImportRequestDto req, AppDbContext db, IGraphService graph,
-            CurrentUser me, CancellationToken ct) =>
+            CurrentUser me, AuditLog audit, CancellationToken ct) =>
         {
             if (!me.IsAdmin) return Results.Forbid();
             List<GraphMember> members;
@@ -105,16 +119,21 @@ public static class AdminEndpoints
                 }
             }
             await db.SaveChangesAsync(ct);
+            await audit.WriteAsync("admin.users.import", "directory", req.SourceId, req.SourceName,
+                $"Imported {imported}, updated {updated}, skipped {skipped} from {req.SourceKind} as {req.DefaultRole}", ct);
             return Results.Ok(new ImportResultDto(imported, updated, skipped,
                 touched.Select(u => u.ToDto()).ToList(),
                 graph.IsConfigured ? null : "Graph not configured — imported from mock directory data."));
         });
 
         // ---- Reminders ----
-        g.MapPost("/reminders/run", async (ReminderService reminders, CurrentUser me, CancellationToken ct) =>
+        g.MapPost("/reminders/run", async (ReminderService reminders, CurrentUser me,
+            AuditLog audit, CancellationToken ct) =>
         {
             if (!me.IsAdmin) return Results.Forbid();
             var count = await reminders.RunOnceAsync(force: true, ct);
+            await audit.WriteAsync("admin.reminders.run", "system", null, null,
+                $"Manual reminder sweep — {count} attempted", ct);
             return Results.Ok(new { attempted = count });
         });
     }

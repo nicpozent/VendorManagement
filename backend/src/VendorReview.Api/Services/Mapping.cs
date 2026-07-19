@@ -53,6 +53,9 @@ public static class Mapping
         new(u.Id, u.EntraObjectId, u.DisplayName, u.Email, u.JobTitle, u.Role.ToString(),
             u.SourceName, u.Enabled, u.ImportedUtc);
 
+    public static AuditEventDto ToDto(this AuditEvent a) =>
+        new(a.Id, a.Utc, a.ActorName, a.ActorRole, a.Action, a.TargetType, a.TargetId, a.TargetName, a.Summary);
+
     public static ArchiveItemDto ToDto(this ArchivedReview a) =>
         new(a.Id, a.ReviewId, a.VendorName, a.CategoryName, a.OwnerName, a.EntityName,
             a.Verdict.ToString(), a.Version, a.FinishedOn);
