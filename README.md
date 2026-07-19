@@ -111,10 +111,17 @@ as IT Manager.
 | Setting | Env var | Default |
 |---|---|---|
 | DB connection | `ConnectionStrings__Default` | local Postgres |
+| Allow open dev-auth outside Development | `Auth__AllowDevFallback` | `false` (fails closed) |
+| Outbound mail recipient allowlist | `Mail__AllowedRecipientDomains__0..n` | empty (allow all) |
+| Per-user mail rate limit | `Mail__RateLimitPerWindow` / `Mail__RateWindowMinutes` | `10` / `10` |
 | Reminder sweep enabled | `Reminders__Enabled` | `true` |
 | Sweep interval (min) | `Reminders__IntervalMinutes` | `360` |
 | Min hours between reminders | `Reminders__MinHoursBetweenReminders` | `20` |
 | CORS origins | `Cors__Origins__0..n` | `http://localhost:5173`, `:4173` |
+
+> **Security:** the API **fails closed** — outside `Development` it refuses to start with the open
+> dev-auth handler unless `Auth__AllowDevFallback=true`. See [`SECURITY.md`](./SECURITY.md) and the
+> threat model in [`docs/security/threat-model.html`](./docs/security/threat-model.html).
 
 ## Notable API endpoints
 
