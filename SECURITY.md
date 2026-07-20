@@ -22,6 +22,7 @@ classes. Remaining work is pre-production hardening.
 | Dependency drift | **Dependabot** enabled for NuGet, npm and GitHub Actions (`.github/dependabot.yml`). |
 | No CI security gate | **CI pipeline** (`.github/workflows/ci.yml`): build/lint/typecheck + **CodeQL** (SAST) + **Trivy** (SCA/secret/IaC) on every push and PR. |
 | No record of sensitive actions | **Append-only audit log** of sign-off, finish, NDA/reminder mail, directory import, role changes and settings/reset (actor, role, target, summary); admins-only **Activity** view (`GET /admin/audit`). |
+| Personal data stored in clear | **AES-256-GCM at-rest encryption** (`Encryption:Enabled` + base64 32-byte `Encryption:Key`) of vendor contacts, imported-user identity, and review NDA/owner emails — envelope-marked (`enc:v1:`), key-rotatable, transparent read/write. |
 
 ## Highest open item (Entra tenant action, not code)
 
@@ -42,6 +43,7 @@ enforcement · managed Postgres with PITR/replicas.
 | `Auth:AllowDevFallback` | Permit the open dev-auth handler outside Development (dev/demo only) | `false` |
 | `Mail:AllowedRecipientDomains` | Outbound mail recipient allowlist (empty = allow all) | `[]` |
 | `Mail:RateLimitPerWindow` / `Mail:RateWindowMinutes` | Per-user mail rate limit | `10` / `10` |
+| `Encryption:Enabled` / `Encryption:Key` | AES-256-GCM at-rest encryption of personal data; base64 32-byte key (`openssl rand -base64 32`, store in Key Vault) | `false` / _(unset)_ |
 
 ## Reporting
 

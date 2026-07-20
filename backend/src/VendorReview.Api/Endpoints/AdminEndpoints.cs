@@ -33,7 +33,9 @@ public static class AdminEndpoints
         g.MapGet("/users", async (AppDbContext db, CurrentUser me, CancellationToken ct) =>
         {
             if (!me.IsAdmin) return Results.Forbid();
-            return Results.Ok((await db.AppUsers.OrderBy(u => u.DisplayName).ToListAsync(ct))
+            // DisplayName is encrypted at rest, so order in memory after decryption.
+            var users = await db.AppUsers.ToListAsync(ct);
+            return Results.Ok(users.OrderBy(u => u.DisplayName, StringComparer.OrdinalIgnoreCase)
                 .Select(u => u.ToDto()).ToList());
         });
 

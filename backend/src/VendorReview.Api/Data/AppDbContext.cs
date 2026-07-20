@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using VendorReview.Api.Domain;
+using VendorReview.Api.Services;
 
 namespace VendorReview.Api.Data;
 
@@ -56,5 +57,20 @@ public class AppDbContext : DbContext
 
         b.Entity<AppUser>().HasIndex(u => u.EntraObjectId).IsUnique();
         b.Entity<AuditEvent>().HasIndex(a => a.Utc);
+
+        // Personal-data columns encrypted at rest (AES-256-GCM) via a value converter.
+        // Stored as `text` because ciphertext is longer than the plaintext limits.
+        var enc = new EncryptedConverter();
+        void Encrypt<T>(System.Linq.Expressions.Expression<Func<T, string?>> prop) where T : class =>
+            b.Entity<T>().Property(prop).HasConversion(enc!).HasColumnType("text");
+
+        Encrypt<Vendor>(v => v.ContactName!);
+        Encrypt<Vendor>(v => v.ContactEmail!);
+        Encrypt<AppUser>(u => u.DisplayName!);
+        Encrypt<AppUser>(u => u.Email);
+        Encrypt<AppUser>(u => u.JobTitle);
+        Encrypt<Review>(r => r.NdaContactName);
+        Encrypt<Review>(r => r.NdaContactEmail);
+        Encrypt<Review>(r => r.OwnerEmail);
     }
 }

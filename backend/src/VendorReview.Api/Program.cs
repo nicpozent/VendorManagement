@@ -12,6 +12,9 @@ using VendorReview.Api.Services;
 var builder = WebApplication.CreateBuilder(args);
 var cfg = builder.Configuration;
 
+// ---- Field-level encryption for personal data (configured before the EF model is built) ----
+FieldProtection.Configure(cfg["Encryption:Key"], cfg.GetValue<bool>("Encryption:Enabled"));
+
 // ---- Persistence (PostgreSQL) ----
 var conn = cfg.GetConnectionString("Default")
            ?? "Host=localhost;Port=5432;Database=vendorreview;Username=vendorreview;Password=devpassword";
