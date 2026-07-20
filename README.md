@@ -114,6 +114,7 @@ as IT Manager.
 | Allow open dev-auth outside Development | `Auth__AllowDevFallback` | `false` (fails closed) |
 | Outbound mail recipient allowlist | `Mail__AllowedRecipientDomains__0..n` | empty (allow all) |
 | Per-user mail rate limit | `Mail__RateLimitPerWindow` / `Mail__RateWindowMinutes` | `10` / `10` |
+| At-rest PII encryption (AES-256-GCM) | `Encryption__Enabled` / `Encryption__Key` (base64 32-byte) | `false` / _(unset)_ |
 | Reminder sweep enabled | `Reminders__Enabled` | `true` |
 | Sweep interval (min) | `Reminders__IntervalMinutes` | `360` |
 | Min hours between reminders | `Reminders__MinHoursBetweenReminders` | `20` |

@@ -32,6 +32,9 @@ services:
       Auth__AllowDevFallback: "${AUTH_ALLOW_DEV_FALLBACK:-true}"
       # Restrict outbound NDA/reminder recipients in production, e.g. birgma.com,biltema.com
       Mail__AllowedRecipientDomains__0: "${MAIL_ALLOWED_DOMAIN_0:-}"
+      # At-rest encryption of personal data. Enable + supply a base64 32-byte key in production.
+      Encryption__Enabled: "${ENCRYPTION_ENABLED:-false}"
+      Encryption__Key: "${ENCRYPTION_KEY:-}"
       Reminders__Enabled: "true"
       Cors__Origins__0: "http://localhost:8080"
     depends_on:
