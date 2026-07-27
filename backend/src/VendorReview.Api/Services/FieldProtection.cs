@@ -81,6 +81,49 @@ public static class FieldProtection
             return stored;
         }
     }
+
+    // ---- Binary payloads (attachment bytes) ----
+    // Envelope = 4-byte magic "ENC1" | nonce(12) | tag(16) | ciphertext. Blobs without
+    // the magic are treated as legacy plaintext and returned untouched.
+    private static readonly byte[] Magic = { 0x45, 0x4E, 0x43, 0x31 };
+
+    public static byte[] ProtectBytes(byte[] plain)
+    {
+        if (!_enabled || _key is null || plain.Length == 0) return plain;
+        var nonce = RandomNumberGenerator.GetBytes(NonceLen);
+        var cipher = new byte[plain.Length];
+        var tag = new byte[TagLen];
+        using var aes = new AesGcm(_key, TagLen);
+        aes.Encrypt(nonce, plain, cipher, tag);
+        var env = new byte[Magic.Length + NonceLen + TagLen + cipher.Length];
+        Buffer.BlockCopy(Magic, 0, env, 0, Magic.Length);
+        Buffer.BlockCopy(nonce, 0, env, Magic.Length, NonceLen);
+        Buffer.BlockCopy(tag, 0, env, Magic.Length + NonceLen, TagLen);
+        Buffer.BlockCopy(cipher, 0, env, Magic.Length + NonceLen + TagLen, cipher.Length);
+        return env;
+    }
+
+    public static byte[] UnprotectBytes(byte[] stored)
+    {
+        if (stored.Length < Magic.Length + NonceLen + TagLen) return stored; // too short to be an envelope
+        for (var i = 0; i < Magic.Length; i++)
+            if (stored[i] != Magic[i]) return stored; // legacy plaintext
+        if (!_enabled || _key is null) return stored; // key unavailable — return marker rather than throw
+        try
+        {
+            var nonce = stored.AsSpan(Magic.Length, NonceLen);
+            var tag = stored.AsSpan(Magic.Length + NonceLen, TagLen);
+            var cipher = stored.AsSpan(Magic.Length + NonceLen + TagLen);
+            var plain = new byte[cipher.Length];
+            using var aes = new AesGcm(_key, TagLen);
+            aes.Decrypt(nonce, cipher, tag, plain);
+            return plain;
+        }
+        catch
+        {
+            return stored;
+        }
+    }
 }
 
 /// <summary>EF Core converter applying <see cref="FieldProtection"/> at the storage boundary.</summary>
@@ -88,4 +131,11 @@ public class EncryptedConverter : ValueConverter<string, string>
 {
     public EncryptedConverter()
         : base(v => FieldProtection.Protect(v), v => FieldProtection.Unprotect(v)) { }
+}
+
+/// <summary>EF Core converter encrypting binary payloads (attachment bytes) at rest.</summary>
+public class EncryptedBytesConverter : ValueConverter<byte[], byte[]>
+{
+    public EncryptedBytesConverter()
+        : base(v => FieldProtection.ProtectBytes(v), v => FieldProtection.UnprotectBytes(v)) { }
 }

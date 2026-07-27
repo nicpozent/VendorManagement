@@ -14,13 +14,19 @@ public static class VendorEndpoints
         var g = app.MapGroup("/vendors").RequireAuthorization();
 
         g.MapGet("", async (AppDbContext db, CancellationToken ct) =>
-            Results.Ok((await db.Vendors.OrderBy(v => v.Name).ToListAsync(ct))
-                .Select(v => v.ToDto()).ToList()));
+        {
+            var interval = await SettingsRepo.ReviewIntervalMonths(db, ct);
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            return Results.Ok((await db.Vendors.OrderBy(v => v.Name).ToListAsync(ct))
+                .Select(v => v.ToDto(interval, today)).ToList());
+        });
 
         g.MapGet("/{id:guid}", async (Guid id, AppDbContext db, CancellationToken ct) =>
         {
             var v = await db.Vendors.FindAsync(new object?[] { id }, ct);
-            return v is null ? Results.NotFound() : Results.Ok(v.ToDto());
+            if (v is null) return Results.NotFound();
+            var interval = await SettingsRepo.ReviewIntervalMonths(db, ct);
+            return Results.Ok(v.ToDto(interval, DateOnly.FromDateTime(DateTime.UtcNow)));
         });
 
         g.MapPut("/{id:guid}/contact", async (Guid id, ContactUpdateDto dto, AppDbContext db, CancellationToken ct) =>
@@ -30,7 +36,8 @@ public static class VendorEndpoints
             v.ContactName = dto.ContactName;
             v.ContactEmail = dto.ContactEmail;
             await db.SaveChangesAsync(ct);
-            return Results.Ok(v.ToDto());
+            var interval = await SettingsRepo.ReviewIntervalMonths(db, ct);
+            return Results.Ok(v.ToDto(interval, DateOnly.FromDateTime(DateTime.UtcNow)));
         });
 
         g.MapPut("/{id:guid}/nda", async (Guid id, VendorDto dto, AppDbContext db, CancellationToken ct) =>
@@ -39,7 +46,8 @@ public static class VendorEndpoints
             if (v is null) return Results.NotFound();
             v.Nda = Mapping.ParseEnum(dto.Nda, v.Nda);
             await db.SaveChangesAsync(ct);
-            return Results.Ok(v.ToDto());
+            var interval = await SettingsRepo.ReviewIntervalMonths(db, ct);
+            return Results.Ok(v.ToDto(interval, DateOnly.FromDateTime(DateTime.UtcNow)));
         });
 
         // Send NDA via MS Graph; the requesting user is cc'd. Marks the vendor "Requested".

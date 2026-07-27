@@ -1,8 +1,8 @@
 import { authBridge, ENTRA_CONFIGURED } from "./authBridge";
 import type {
-  AppUser, ArchiveDetail, ArchiveItem, AuditEvent, Category, CompareMatrix, Entity, ImportKind,
-  ImportResult, ImportSource, GraphMember, Me, Policy, ReviewDetail, ReviewListItem,
-  ScanResult, Section, Settings, Vendor,
+  AppUser, ArchiveDetail, ArchiveItem, Attachment, AttachmentKind, AuditEvent, Category,
+  CompareMatrix, Entity, ImportKind, ImportResult, ImportSource, GraphMember, Me, Policy,
+  ReviewDetail, ReviewListItem, ScanResult, Section, Settings, Vendor,
 } from "./types";
 
 const BASE = (import.meta.env.VITE_API_BASE as string) || "/api";
@@ -11,33 +11,49 @@ export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-
-  // Auth on every call. Bearer token when Entra is configured; otherwise the dev
-  // header (the API only honours it when real Entra auth is not registered).
+// Auth on every call. Bearer token when Entra is configured; otherwise the dev
+// header (the API only honours it when real Entra auth is not registered).
+async function authHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {};
   const token = await authBridge.getToken();
   if (token) headers["Authorization"] = `Bearer ${token}`;
   if (!ENTRA_CONFIGURED) headers["X-Debug-Role"] = authBridge.getRole();
+  return headers;
+}
 
+async function errorFrom(res: Response): Promise<ApiError> {
+  let msg = `${res.status} ${res.statusText}`;
+  try { const txt = await res.text(); if (txt) msg = txt; } catch { /* ignore */ }
+  return new ApiError(res.status, msg);
+}
+
+async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const headers = { "Content-Type": "application/json", ...(await authHeaders()) };
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 
-  if (!res.ok) {
-    let msg = `${res.status} ${res.statusText}`;
-    try {
-      const txt = await res.text();
-      if (txt) msg = txt;
-    } catch { /* ignore */ }
-    throw new ApiError(res.status, msg);
-  }
+  if (!res.ok) throw await errorFrom(res);
   if (res.status === 204) return undefined as T;
   const ct = res.headers.get("content-type") ?? "";
   if (ct.includes("application/json")) return (await res.json()) as T;
   return (await res.text()) as unknown as T;
+}
+
+// Multipart upload (attachments) — no JSON Content-Type so the browser sets the boundary.
+async function upload<T>(path: string, form: FormData): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, { method: "POST", headers: await authHeaders(), body: form });
+  if (!res.ok) throw await errorFrom(res);
+  return (await res.json()) as T;
+}
+
+// Authenticated binary fetch (attachment download).
+async function getBlob(path: string): Promise<Blob> {
+  const res = await fetch(`${BASE}${path}`, { headers: await authHeaders() });
+  if (!res.ok) throw await errorFrom(res);
+  return await res.blob();
 }
 
 export const api = {
@@ -63,6 +79,22 @@ export const api = {
   remind: (id: string) => request<{ sent: boolean; mock: boolean; to: string[]; cc: string[] }>("POST", `/reviews/${id}/remind`),
   memo: (id: string) => request<string>("GET", `/reviews/${id}/memo`),
   deleteReview: (id: string) => request<void>("DELETE", `/reviews/${id}`),
+
+  // Evidence attachments
+  attachments: (id: string) => request<Attachment[]>("GET", `/reviews/${id}/attachments`),
+  uploadAttachment: (id: string, file: File, kind: AttachmentKind) => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("kind", kind);
+    return upload<Attachment>(`/reviews/${id}/attachments`, form);
+  },
+  attachmentBlob: (id: string, attId: string) =>
+    getBlob(`/reviews/${id}/attachments/${attId}/download`),
+  deleteAttachment: (id: string, attId: string) =>
+    request<void>("DELETE", `/reviews/${id}/attachments/${attId}`),
+
+  // Per-review history (audit events targeting this review)
+  reviewAudit: (id: string) => request<AuditEvent[]>("GET", `/reviews/${id}/audit`),
 
   // Catalog
   categories: () => request<Category[]>("GET", "/catalog/categories"),

@@ -22,9 +22,32 @@ public static class Mapping
         new(p.Id, p.Rule, p.SectionId, p.Section?.Name ?? "",
             p.Severity.ToString(), p.Weight.ToString(), p.Active);
 
-    public static VendorDto ToDto(this Vendor v) =>
-        new(v.Id, v.Name, v.Category, v.ContactName, v.ContactEmail, v.Nda.ToString(),
-            v.Status.ToString(), v.LastReview, v.RejectedOn, v.RejectedReason, v.OwnerName);
+    public static VendorDto ToDto(this Vendor v, int intervalMonths, DateOnly today)
+    {
+        DateOnly? due = null;
+        var state = RenewalState.NotApplicable;
+        if (v.Status == VendorStatus.Approved)
+        {
+            if (v.LastReview is null)
+            {
+                state = RenewalState.Unknown;
+            }
+            else
+            {
+                due = v.LastReview.Value.AddMonths(intervalMonths);
+                state = today > due.Value ? RenewalState.Overdue
+                    : today >= due.Value.AddDays(-60) ? RenewalState.DueSoon
+                    : RenewalState.Current;
+            }
+        }
+        return new(v.Id, v.Name, v.Category, v.ContactName, v.ContactEmail, v.Nda.ToString(),
+            v.Status.ToString(), v.LastReview, v.RejectedOn, v.RejectedReason, v.OwnerName,
+            due, state.ToString());
+    }
+
+    public static AttachmentDto ToDto(this Attachment a) =>
+        new(a.Id, a.ReviewId, a.FileName, a.ContentType, a.SizeBytes, a.Kind.ToString(),
+            a.UploadedByName, a.UploadedUtc);
 
     public static OpenQuestionDto ToDto(this OpenQuestion q) => new(q.Id, q.Text, q.Resolved);
 
