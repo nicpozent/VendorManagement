@@ -23,6 +23,33 @@ jobs:
       - run: dotnet build --no-restore -c Release
         working-directory: backend
 
+  backend-test:
+    name: Backend · test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vendorreview
+          POSTGRES_PASSWORD: devpassword
+          POSTGRES_DB: vendorreview
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vendorreview"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "8.0.x"
+      - run: dotnet test -c Release
+        working-directory: backend
+        env:
+          ConnectionStrings__Default: "Host=localhost;Port=5432;Database=vendorreview;Username=vendorreview;Password=devpassword"
+
   frontend:
     name: Frontend · lint · typecheck · build
     runs-on: ubuntu-latest
