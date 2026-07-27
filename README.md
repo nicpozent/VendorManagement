@@ -138,3 +138,7 @@ as IT Manager.
 - Matches the screenshots across Daylight / Command / Carbon themes.
 - Entities filter + form + admin CRUD work; verdict/readiness computed server-side.
 - `dotnet build` and `npm run build` (tsc + vite) are green; container images build via `docker compose`.
+- Automated tests green: `dotnet test` (xUnit) covers the verdict engine, field encryption,
+  renewal computation, role resolution, and the API authorization model (owner/leadership
+  scoping + admin gating). Runs in CI against a Postgres service; locally point
+  `ConnectionStrings__Default` at a running Postgres and run `dotnet test` in `backend/`.

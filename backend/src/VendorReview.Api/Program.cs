@@ -133,3 +133,6 @@ app.MapArchive();
 app.MapAdmin();
 
 app.Run();
+
+// Exposed so the integration test project can boot the app via WebApplicationFactory.
+public partial class Program { }
