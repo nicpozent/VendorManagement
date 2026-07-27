@@ -1,0 +1,8 @@
+# Triaged, non-applicable advisories. Each entry states why it cannot affect this
+# app and is removed once a patched upstream release is adopted. Reviewed 2026-07-27.
+
+# react-router "RSC Mode CSRF Bypass" (affects 7.12.0–8.2.0; no patched release yet).
+# Not reachable: this app uses react-router purely client-side (BrowserRouter + <Routes>),
+# with no RSC / framework mode, no server loaders or actions — the vulnerable request
+# path does not exist here. Remove when react-router publishes a fixed version and we bump.
+GHSA-qwww-vcr4-c8h2
