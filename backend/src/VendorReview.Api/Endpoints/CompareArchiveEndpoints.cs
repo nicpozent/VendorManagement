@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using VendorReview.Api.Auth;
 using VendorReview.Api.Data;
 using VendorReview.Api.Domain;
 using VendorReview.Api.Dtos;
@@ -12,19 +13,21 @@ public static class CompareArchiveEndpoints
     {
         // Side-by-side matrix for one category. Columns = reviews (vendors) in the
         // category; rows = rubric items grouped by section; cells = per-item status.
-        app.MapGet("/compare", async (Guid? categoryId, AppDbContext db, VerdictEngine engine,
-            CancellationToken ct) =>
+        app.MapGet("/compare", async (Guid? categoryId, AppDbContext db, CurrentUser me,
+            VerdictEngine engine, CancellationToken ct) =>
         {
             if (categoryId is null) return Results.BadRequest(new { message = "categoryId is required." });
             var cat = await db.Categories.FirstOrDefaultAsync(c => c.Id == categoryId, ct);
             if (cat is null) return Results.NotFound();
 
             bool caps = await SettingsRepo.BlockerCapsVerdict(db, ct);
-            var reviews = await db.Reviews
+            var q = db.Reviews
                 .Include(r => r.Sections).ThenInclude(s => s.Items)
-                .Where(r => r.CategoryId == categoryId)
-                .OrderBy(r => r.VendorName)
-                .ToListAsync(ct);
+                .Where(r => r.CategoryId == categoryId);
+            // Same visibility rule as the reviews list: managers see only their own.
+            if (!me.IsLeadership)
+                q = q.Where(r => r.OwnerObjectId == me.ObjectId || r.OwnerName == me.DisplayName);
+            var reviews = await q.OrderBy(r => r.VendorName).ToListAsync(ct);
 
             var sections = await db.Sections.Include(s => s.Items)
                 .Where(s => cat.IncludedSectionIds.Contains(s.Id))
@@ -58,14 +61,23 @@ public static class CompareArchiveEndpoints
     {
         var g = app.MapGroup("/archive").RequireAuthorization();
 
-        g.MapGet("", async (AppDbContext db, CancellationToken ct) =>
-            Results.Ok((await db.ArchivedReviews.OrderByDescending(a => a.FinishedOn).ThenBy(a => a.Version).ToListAsync(ct))
-                .Select(a => a.ToDto()).ToList()));
+        g.MapGet("", async (AppDbContext db, CurrentUser me, CancellationToken ct) =>
+        {
+            var q = db.ArchivedReviews.AsQueryable();
+            // Managers see only their own finished reviews; leadership sees the portfolio.
+            if (!me.IsLeadership)
+                q = q.Where(a => a.OwnerObjectId == me.ObjectId || a.OwnerName == me.DisplayName);
+            var list = await q.OrderByDescending(a => a.FinishedOn).ThenBy(a => a.Version).ToListAsync(ct);
+            return Results.Ok(list.Select(a => a.ToDto()).ToList());
+        });
 
-        g.MapGet("/{id:guid}", async (Guid id, AppDbContext db, CancellationToken ct) =>
+        g.MapGet("/{id:guid}", async (Guid id, AppDbContext db, CurrentUser me, CancellationToken ct) =>
         {
             var a = await db.ArchivedReviews.FindAsync(new object?[] { id }, ct);
-            return a is null ? Results.NotFound() : Results.Ok(new ArchiveDetailDto(a.ToDto(), a.MemoMarkdown));
+            if (a is null) return Results.NotFound();
+            if (!me.IsLeadership && a.OwnerObjectId != me.ObjectId && a.OwnerName != me.DisplayName)
+                return Results.Forbid();
+            return Results.Ok(new ArchiveDetailDto(a.ToDto(), a.MemoMarkdown));
         });
     }
 }

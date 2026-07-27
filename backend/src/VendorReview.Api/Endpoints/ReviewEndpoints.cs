@@ -176,7 +176,8 @@ public static class ReviewEndpoints
             db.ArchivedReviews.Add(new ArchivedReview
             {
                 ReviewId = r.Id, VendorName = r.VendorName, CategoryName = r.CategoryName,
-                OwnerName = r.OwnerName, EntityId = r.EntityId, EntityName = r.Entity?.Name,
+                OwnerName = r.OwnerName, OwnerObjectId = r.OwnerObjectId,
+                EntityId = r.EntityId, EntityName = r.Entity?.Name,
                 Verdict = Mapping.ParseEnum(v.Verdict, Verdict.InProgress), Version = version,
                 FinishedOn = DateOnly.FromDateTime(DateTime.UtcNow),
                 MemoMarkdown = memo.Build(r, v, r.Entity?.Name),

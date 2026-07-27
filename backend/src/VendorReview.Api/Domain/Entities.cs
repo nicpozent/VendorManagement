@@ -165,6 +165,8 @@ public class ArchivedReview
     [MaxLength(200)] public string VendorName { get; set; } = "";
     [MaxLength(200)] public string CategoryName { get; set; } = "";
     [MaxLength(200)] public string OwnerName { get; set; } = "";
+    /// <summary>Entra object id of the owning manager; used to scope Archive for non-leadership.</summary>
+    [MaxLength(100)] public string? OwnerObjectId { get; set; }
     public Guid? EntityId { get; set; }
     [MaxLength(200)] public string? EntityName { get; set; }
     public Verdict Verdict { get; set; }
