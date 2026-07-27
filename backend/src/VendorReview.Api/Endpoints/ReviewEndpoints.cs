@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using Microsoft.EntityFrameworkCore;
 using VendorReview.Api.Auth;
 using VendorReview.Api.Data;
@@ -140,6 +141,7 @@ public static class ReviewEndpoints
         {
             var r = await db.Reviews.FirstOrDefaultAsync(x => x.Id == id, ct);
             if (r is null) return Results.NotFound();
+            if (!CanAccess(me, r)) return Results.Forbid();
             return Results.Ok(await scanner.Scan(r.RawPitch, ct));
         });
 
@@ -195,11 +197,12 @@ public static class ReviewEndpoints
         });
 
         // Export the rendered memo markdown.
-        g.MapGet("/{id:guid}/memo", async (Guid id, AppDbContext db, VerdictEngine engine,
-            MemoBuilder memo, CancellationToken ct) =>
+        g.MapGet("/{id:guid}/memo", async (Guid id, AppDbContext db, CurrentUser me,
+            VerdictEngine engine, MemoBuilder memo, CancellationToken ct) =>
         {
             var r = await LoadFull(db, id, ct);
             if (r is null) return Results.NotFound();
+            if (!CanAccess(me, r)) return Results.Forbid();
             bool caps = await SettingsRepo.BlockerCapsVerdict(db, ct);
             var md = memo.Build(r, engine.Evaluate(r, caps), r.Entity?.Name);
             return Results.Text(md, "text/markdown");
@@ -212,6 +215,7 @@ public static class ReviewEndpoints
         {
             var r = await LoadFull(db, id, ct);
             if (r is null) return Results.NotFound();
+            if (!CanAccess(me, r)) return Results.Forbid();
             bool caps = await SettingsRepo.BlockerCapsVerdict(db, ct);
             var v = engine.Evaluate(r, caps);
 
@@ -229,9 +233,12 @@ public static class ReviewEndpoints
             var cc = new List<string>();
             if (!string.IsNullOrWhiteSpace(me.Email) && mail.IsAllowed(me.Email)) cc.Add(me.Email!); // requester cc'd
 
+            // HTML-encode vendor-controlled values interpolated into the mail body.
+            var vendorHtml = HtmlEncoder.Default.Encode(r.VendorName);
+            var reasonHtml = HtmlEncoder.Default.Encode(v.VerdictReason);
             var sent = await graph.SendMailAsync(to, cc,
                 $"Reminder: vendor review — {r.VendorName} ({v.VerdictLabel})",
-                $"<p>Reminder to action <strong>{r.VendorName}</strong> — {v.VerdictLabel}. {v.VerdictReason}</p>", ct);
+                $"<p>Reminder to action <strong>{vendorHtml}</strong> — {v.VerdictLabel}. {reasonHtml}</p>", ct);
             r.LastReminderUtc = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
             await audit.WriteAsync("review.remind", "review", r.Id.ToString(), r.VendorName,
@@ -259,6 +266,9 @@ public static class ReviewEndpoints
             if (r is null) return Results.NotFound();
             if (!CanAccess(me, r)) return Results.Forbid();
             if (!req.HasFormContentType) return Results.BadRequest(new { message = "Expected multipart/form-data." });
+            // Reject oversize before buffering the body (allow small multipart overhead).
+            if (req.ContentLength is > MaxUploadBytes + 1024 * 1024)
+                return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
 
             var form = await req.ReadFormAsync(ct);
             var file = form.Files.GetFile("file");

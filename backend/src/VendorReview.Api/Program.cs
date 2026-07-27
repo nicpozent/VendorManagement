@@ -104,6 +104,18 @@ using (var scope = app.Services.CreateScope())
     await SeedData.EnsureSeededAsync(db);
 }
 
+// Baseline security response headers (defence-in-depth). TLS/HSTS is terminated at
+// the ingress/reverse proxy in production; these harden every API response.
+app.Use(async (ctx, next) =>
+{
+    var h = ctx.Response.Headers;
+    h["X-Content-Type-Options"] = "nosniff";
+    h["X-Frame-Options"] = "DENY";
+    h["Referrer-Policy"] = "no-referrer";
+    h["Content-Security-Policy"] = "frame-ancestors 'none'";
+    await next();
+});
+
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseCors();
