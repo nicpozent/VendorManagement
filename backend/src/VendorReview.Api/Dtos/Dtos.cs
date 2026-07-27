@@ -17,7 +17,8 @@ public record PolicyDto(Guid Id, string Rule, Guid SectionId, string SectionName
 // ---- Vendors ----
 public record VendorDto(Guid Id, string Name, string Category, string ContactName,
     string ContactEmail, string Nda, string Status, DateOnly? LastReview,
-    DateOnly? RejectedOn, string? RejectedReason, string? OwnerName);
+    DateOnly? RejectedOn, string? RejectedReason, string? OwnerName,
+    DateOnly? NextReviewDue, string RenewalState);
 
 public record ContactUpdateDto(string ContactName, string ContactEmail);
 public record SendNdaResultDto(string Message, string CcTo);
@@ -77,8 +78,12 @@ public record ArchiveItemDto(Guid Id, Guid ReviewId, string VendorName, string C
     string OwnerName, string? EntityName, string Verdict, int Version, DateOnly FinishedOn);
 public record ArchiveDetailDto(ArchiveItemDto Header, string MemoMarkdown);
 
+// ---- Attachments (evidence documents) ----
+public record AttachmentDto(Guid Id, Guid ReviewId, string FileName, string ContentType,
+    long SizeBytes, string Kind, string UploadedByName, DateTime UploadedUtc);
+
 // ---- Settings ----
-public record SettingsDto(bool BlockerCapsVerdict);
+public record SettingsDto(bool BlockerCapsVerdict, int ReviewIntervalMonths);
 
 // ---- Admin / Entra import ----
 public record AppUserDto(Guid Id, string EntraObjectId, string DisplayName, string? Email,

@@ -98,6 +98,29 @@ public class Review
     public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;
     public DateTime? LastReminderUtc { get; set; }
+    /// <summary>Set when the review is finished &amp; archived; anchors the renewal clock.</summary>
+    public DateTime? FinishedUtc { get; set; }
+    public List<Attachment> Attachments { get; set; } = new();
+}
+
+/// <summary>
+/// An evidence document attached to a review (signed NDA, SOC 2 / ISO 27001 report,
+/// DPA, pen-test report, …). The bytes are encrypted at rest (AES-256-GCM) via the
+/// same field-protection converter used for personal data.
+/// </summary>
+public class Attachment
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid ReviewId { get; set; }
+    [MaxLength(260)] public string FileName { get; set; } = "";
+    [MaxLength(150)] public string ContentType { get; set; } = "application/octet-stream";
+    public long SizeBytes { get; set; }
+    public AttachmentKind Kind { get; set; } = AttachmentKind.Other;
+    [MaxLength(100)] public string UploadedByObjectId { get; set; } = "";
+    [MaxLength(200)] public string UploadedByName { get; set; } = "";
+    public DateTime UploadedUtc { get; set; } = DateTime.UtcNow;
+    /// <summary>File contents, encrypted at rest.</summary>
+    public byte[] Data { get; set; } = Array.Empty<byte>();
 }
 
 public class ReviewSectionScore

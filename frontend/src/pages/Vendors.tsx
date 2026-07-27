@@ -2,7 +2,7 @@ import { useState } from "react";
 import { api } from "../api/client";
 import { useApp } from "../app/AppProvider";
 import { useAsync } from "../hooks/useAsync";
-import { Button, Card, EmptyState, ErrorState, Loading, NdaPill } from "../components/ui";
+import { Button, Card, EmptyState, ErrorState, Loading, NdaPill, RenewalPill } from "../components/ui";
 import { STATUS } from "../theme/tokens";
 import type { Vendor } from "../api/types";
 
@@ -48,7 +48,7 @@ export function Vendors() {
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 720 }}>
             <thead>
               <tr style={head}>
-                <Th>VENDOR</Th><Th>CATEGORY</Th><Th>CONTACT</Th><Th>LAST REVIEW</Th><Th>NDA</Th><Th></Th>
+                <Th>VENDOR</Th><Th>CATEGORY</Th><Th>CONTACT</Th><Th>LAST REVIEW</Th><Th>NEXT REVIEW</Th><Th>NDA</Th><Th></Th>
               </tr>
             </thead>
             <tbody>
@@ -64,6 +64,10 @@ export function Vendors() {
                     <div style={{ fontSize: 12, color: "var(--muted)" }}>{v.contactEmail}</div>
                   </Td>
                   <Td muted>{fmt(v.lastReview)}</Td>
+                  <Td>
+                    <RenewalPill state={v.renewalState} />
+                    {v.nextReviewDue && <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>due {fmt(v.nextReviewDue)}</div>}
+                  </Td>
                   <Td><NdaPill nda={v.nda} /></Td>
                   <Td>
                     <Button variant="soft" disabled={sending === v.id} onClick={() => sendNda(v)}>

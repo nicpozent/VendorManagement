@@ -29,6 +29,13 @@ export function Dashboard() {
   const leadership = role !== "ITManager";
   const reviews = data ?? [];
 
+  // Renewal surfacing: approved vendors whose re-review is due or overdue.
+  const renewals = useAsync(() => api.vendors(), []);
+  const dueVendors = (renewals.data ?? []).filter(
+    (v) => v.status === "Approved" && (v.renewalState === "Overdue" || v.renewalState === "DueSoon"),
+  );
+  const overdueCount = dueVendors.filter((v) => v.renewalState === "Overdue").length;
+
   const filtered = useMemo(() => reviews.filter((r) =>
     (!status || r.status === status) &&
     (!category || r.categoryName === category) &&
@@ -92,6 +99,20 @@ export function Dashboard() {
           </span>
         </Card>
       )}
+
+      {/* Renewals due banner */}
+      {dueVendors.length > 0 && (() => {
+        const c = overdueCount > 0 ? STATUS.blocker : STATUS.concern;
+        return (
+          <Card onClick={() => nav("/vendors")} style={{ padding: "14px 18px", marginBottom: 18, cursor: "pointer", background: `color-mix(in srgb, ${c} 8%, var(--panel))`, borderColor: `color-mix(in srgb, ${c} 30%, var(--line))`, display: "flex", alignItems: "center", gap: 14 }}>
+            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1, color: c, border: `1px solid ${c}`, borderRadius: 999, padding: "4px 12px" }}>REVIEW DUE</span>
+            <span style={{ color: c, fontWeight: 600 }}>
+              {dueVendors.length} approved vendor{dueVendors.length > 1 ? "s" : ""} due for re-review
+              {overdueCount > 0 ? ` — ${overdueCount} overdue` : ""}. Open Vendors →
+            </span>
+          </Card>
+        );
+      })()}
 
       {/* Filters */}
       <div style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 12, flexWrap: "wrap" }}>

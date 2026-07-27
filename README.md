@@ -26,8 +26,11 @@ docker-compose.yml   Postgres + API + web (nginx)
 - **Vendors** — approved + rejected tables, NDA status, **Send NDA** (Graph mail, requester cc’d).
 - **Archive** — immutable finished-review memo snapshots with copy/print export.
 - **Configuration** — Vendor categories · **Entities** (admin CRUD) · Review sections · Policy library · Settings · **Directory**.
-- **Review editor** — two-pane intake + scoring with a **live, server-computed** blocker-first memo; Scan & suggest; Copy .md / .md / Excel / Print / Finish & archive.
-- **Entities** (this iteration) — Birgma group businesses; dashboard filter, review metadata select, admin-only CRUD.
+- **Review editor** — two-pane intake + scoring with a **live, server-computed** blocker-first memo; Scan & suggest; **evidence attachments**; per-review **history**; Copy .md / .md / Excel / Print / Finish & archive.
+- **Evidence attachments** — attach the signed NDA, SOC 2 / ISO 27001 report, DPA or pen-test report to a review (≤15 MB). Bytes are **encrypted at rest** (AES-256-GCM), owner/leadership-scoped.
+- **Renewal lifecycle** — approved vendors carry a computed re-review due date (last review + configurable interval, default 12 months); **Due soon** / **Overdue** flags surface on the dashboard banner and the Vendors table.
+- **History** — every review shows an append-only timeline (sign-off, finish, reminders, document add/remove) drawn from the audit trail.
+- **Entities** — Birgma group businesses; dashboard filter, review metadata select, admin-only CRUD.
 - **Directory (admin)** — import users from Entra **groups / enterprise apps / app registrations** via Graph; manage roles.
 - **Reminders** — background worker emails owners + approvers of pending reviews via Graph (also on-demand).
 
@@ -126,9 +129,9 @@ as IT Manager.
 
 ## Notable API endpoints
 
-`/me` · `/reviews` (+ `/{id}/scan|signoff|finish|memo|remind`) · `/vendors` (+ `/{id}/send-nda`) ·
-`/catalog/categories|sections|policies` · `/entities` · `/compare` · `/archive` · `/settings` (+ `/reset`) ·
-`/admin/users` · `/admin/import/sources|preview` · `/admin/import` · `/admin/reminders/run`.
+`/me` · `/reviews` (+ `/{id}/scan|signoff|finish|memo|remind|audit`, `/{id}/attachments` [+ `/{attId}/download`]) ·
+`/vendors` (+ `/{id}/send-nda`) · `/catalog/categories|sections|policies` · `/entities` · `/compare` ·
+`/archive` · `/settings` (+ `/reset`) · `/admin/users` · `/admin/import/sources|preview` · `/admin/import` · `/admin/reminders/run`.
 
 ## Definition of done
 

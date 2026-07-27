@@ -200,16 +200,20 @@ public static class CatalogEndpoints
         var g = app.MapGroup("/settings").RequireAuthorization();
 
         g.MapGet("", async (AppDbContext db, CancellationToken ct) =>
-            Results.Ok(new SettingsDto(await SettingsRepo.BlockerCapsVerdict(db, ct))));
+            Results.Ok(new SettingsDto(
+                await SettingsRepo.BlockerCapsVerdict(db, ct),
+                await SettingsRepo.ReviewIntervalMonths(db, ct))));
 
         g.MapPut("", async (SettingsDto dto, AppDbContext db, CurrentUser me, AuditLog audit, CancellationToken ct) =>
         {
             if (!me.IsAdmin) return Results.Forbid();
             await SettingsRepo.SetBlockerCapsVerdict(db, dto.BlockerCapsVerdict, ct);
+            await SettingsRepo.SetReviewIntervalMonths(db, dto.ReviewIntervalMonths, ct);
             await db.SaveChangesAsync(ct);
-            await audit.WriteAsync("settings.update", "settings", "blockerCapsVerdict", null,
-                $"Blocker-caps-verdict = {dto.BlockerCapsVerdict}", ct);
-            return Results.Ok(new SettingsDto(dto.BlockerCapsVerdict));
+            var interval = await SettingsRepo.ReviewIntervalMonths(db, ct);
+            await audit.WriteAsync("settings.update", "settings", null, null,
+                $"Blocker-caps-verdict = {dto.BlockerCapsVerdict}; review interval = {interval} months", ct);
+            return Results.Ok(new SettingsDto(dto.BlockerCapsVerdict, interval));
         });
 
         g.MapPost("/reset", async (AppDbContext db, CurrentUser me, AuditLog audit, CancellationToken ct) =>

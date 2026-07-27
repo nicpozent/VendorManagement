@@ -1,11 +1,12 @@
 import type { CSSProperties, ReactNode } from "react";
 import { STATUS } from "../theme/tokens";
-import type { ItemStatus, Nda, ReviewStatus, VerdictName } from "../api/types";
+import type { ItemStatus, Nda, RenewalState, ReviewStatus, VerdictName } from "../api/types";
 
-export function Card({ children, style, className }: { children: ReactNode; style?: CSSProperties; className?: string }) {
+export function Card({ children, style, className, onClick }: { children: ReactNode; style?: CSSProperties; className?: string; onClick?: () => void }) {
   return (
     <div
       className={className}
+      onClick={onClick}
       style={{
         background: "var(--panel)",
         border: "1px solid var(--line)",
@@ -91,6 +92,18 @@ const NDA: Record<Nda, { c: string; label: string }> = {
 export function NdaPill({ nda }: { nda: Nda }) {
   const s = NDA[nda];
   return <Pill color={s.c}>{s.label}</Pill>;
+}
+
+const RENEWAL: Record<RenewalState, { c: string; label: string } | null> = {
+  Overdue: { c: STATUS.blocker, label: "OVERDUE" },
+  DueSoon: { c: STATUS.concern, label: "DUE SOON" },
+  Current: { c: STATUS.pass, label: "CURRENT" },
+  Unknown: { c: "var(--faint)", label: "NOT REVIEWED" },
+  NotApplicable: null,
+};
+export function RenewalPill({ state }: { state: RenewalState }) {
+  const s = RENEWAL[state];
+  return s ? <Pill color={s.c}>{s.label}</Pill> : <span style={{ color: "var(--faint)" }}>—</span>;
 }
 
 export function Button({ children, onClick, variant = "primary", disabled, style, type }: {

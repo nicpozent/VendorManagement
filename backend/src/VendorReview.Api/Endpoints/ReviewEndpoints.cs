@@ -180,7 +180,14 @@ public static class ReviewEndpoints
                 MemoMarkdown = memo.Build(r, v, r.Entity?.Name),
             });
             r.Status = ReviewStatus.Finished;
+            r.FinishedUtc = DateTime.UtcNow;
             r.UpdatedUtc = DateTime.UtcNow;
+
+            // Anchor the renewal clock: stamp the matching vendor's last-review date.
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var vendor = await db.Vendors.FirstOrDefaultAsync(x => x.Name == r.VendorName, ct);
+            if (vendor is not null) vendor.LastReview = today;
+
             await db.SaveChangesAsync(ct);
             await audit.WriteAsync("review.finish", "review", r.Id.ToString(), r.VendorName,
                 $"Finished & archived v{version} (verdict {v.VerdictLabel})", ct);
@@ -232,6 +239,95 @@ public static class ReviewEndpoints
             return Results.Ok(new { sent, mock = !graph.IsConfigured, to, cc, blocked });
         }).RequireRateLimiting("mail");
 
+        // ---- Evidence attachments (SOC 2 / ISO / DPA / pen-test / signed NDA) ----
+        const long MaxUploadBytes = 15 * 1024 * 1024;
+
+        g.MapGet("/{id:guid}/attachments", async (Guid id, AppDbContext db, CurrentUser me, CancellationToken ct) =>
+        {
+            var r = await db.Reviews.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
+            if (r is null) return Results.NotFound();
+            if (!CanAccess(me, r)) return Results.Forbid();
+            var items = await db.Attachments.AsNoTracking().Where(a => a.ReviewId == id)
+                .OrderByDescending(a => a.UploadedUtc).ToListAsync(ct);
+            return Results.Ok(items.Select(a => a.ToDto()).ToList());
+        });
+
+        g.MapPost("/{id:guid}/attachments", async (Guid id, HttpRequest req, AppDbContext db,
+            CurrentUser me, AuditLog audit, CancellationToken ct) =>
+        {
+            var r = await db.Reviews.FirstOrDefaultAsync(x => x.Id == id, ct);
+            if (r is null) return Results.NotFound();
+            if (!CanAccess(me, r)) return Results.Forbid();
+            if (!req.HasFormContentType) return Results.BadRequest(new { message = "Expected multipart/form-data." });
+
+            var form = await req.ReadFormAsync(ct);
+            var file = form.Files.GetFile("file");
+            if (file is null || file.Length == 0) return Results.BadRequest(new { message = "No file uploaded." });
+            if (file.Length > MaxUploadBytes)
+                return Results.BadRequest(new { message = $"File exceeds the {MaxUploadBytes / (1024 * 1024)} MB limit." });
+
+            var kind = Mapping.ParseEnum(form["kind"].ToString(), AttachmentKind.Other);
+            using var ms = new MemoryStream();
+            await file.CopyToAsync(ms, ct);
+
+            var att = new Attachment
+            {
+                ReviewId = id,
+                FileName = Path.GetFileName(file.FileName),
+                ContentType = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType,
+                SizeBytes = file.Length,
+                Kind = kind,
+                UploadedByObjectId = me.ObjectId,
+                UploadedByName = me.DisplayName,
+                Data = ms.ToArray(),
+            };
+            db.Attachments.Add(att);
+            await db.SaveChangesAsync(ct);
+            await audit.WriteAsync("attachment.add", "attachment", id.ToString(), att.FileName,
+                $"Uploaded {att.Kind} evidence ({att.SizeBytes / 1024} KB) to {r.VendorName}", ct);
+            return Results.Created($"/reviews/{id}/attachments/{att.Id}", att.ToDto());
+        }).DisableAntiforgery();
+
+        g.MapGet("/{id:guid}/attachments/{attId:guid}/download", async (Guid id, Guid attId,
+            AppDbContext db, CurrentUser me, CancellationToken ct) =>
+        {
+            var r = await db.Reviews.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
+            if (r is null) return Results.NotFound();
+            if (!CanAccess(me, r)) return Results.Forbid();
+            var att = await db.Attachments.AsNoTracking().FirstOrDefaultAsync(a => a.Id == attId && a.ReviewId == id, ct);
+            if (att is null) return Results.NotFound();
+            return Results.File(att.Data, att.ContentType, att.FileName);
+        });
+
+        g.MapDelete("/{id:guid}/attachments/{attId:guid}", async (Guid id, Guid attId,
+            AppDbContext db, CurrentUser me, AuditLog audit, CancellationToken ct) =>
+        {
+            var r = await db.Reviews.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
+            if (r is null) return Results.NotFound();
+            if (!CanAccess(me, r)) return Results.Forbid();
+            var att = await db.Attachments.FirstOrDefaultAsync(a => a.Id == attId && a.ReviewId == id, ct);
+            if (att is null) return Results.NotFound();
+            db.Attachments.Remove(att);
+            await db.SaveChangesAsync(ct);
+            await audit.WriteAsync("attachment.delete", "attachment", id.ToString(), att.FileName,
+                $"Removed evidence from {r.VendorName}", ct);
+            return Results.NoContent();
+        });
+
+        // Per-review history: the audit events that target this review (sign-off, finish,
+        // reminders, attachment add/remove). Visible to the owner and leadership.
+        g.MapGet("/{id:guid}/audit", async (Guid id, AppDbContext db, CurrentUser me, CancellationToken ct) =>
+        {
+            var r = await db.Reviews.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
+            if (r is null) return Results.NotFound();
+            if (!CanAccess(me, r)) return Results.Forbid();
+            var key = id.ToString();
+            var events = await db.AuditEvents.AsNoTracking()
+                .Where(a => a.TargetId == key)
+                .OrderByDescending(a => a.Utc).Take(200).ToListAsync(ct);
+            return Results.Ok(events.Select(e => e.ToDto()).ToList());
+        });
+
         g.MapDelete("/{id:guid}", async (Guid id, AppDbContext db, CurrentUser me, CancellationToken ct) =>
         {
             var r = await db.Reviews.FirstOrDefaultAsync(x => x.Id == id, ct);
@@ -243,6 +339,10 @@ public static class ReviewEndpoints
             return Results.NoContent();
         });
     }
+
+    /// <summary>Owner-or-leadership access check, matching the review read/write rule.</summary>
+    private static bool CanAccess(CurrentUser me, Review r) =>
+        me.IsLeadership || r.OwnerObjectId == me.ObjectId || r.OwnerName == me.DisplayName;
 
     private static Task<Review?> LoadFull(AppDbContext db, Guid id, CancellationToken ct) =>
         db.Reviews

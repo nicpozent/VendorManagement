@@ -2,12 +2,25 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import { useApp } from "../app/AppProvider";
-import { Button, Card, ErrorState, Field, Loading, NdaPill, inputStyle } from "../components/ui";
+import { Button, Card, ErrorState, Field, Loading, NdaPill, Pill, inputStyle } from "../components/ui";
 import { MemoView } from "../components/MemoView";
 import { STATUS } from "../theme/tokens";
 import type {
-  ItemStatus, Nda, ReviewDetail, ReviewSectionScore, ReviewStatus, Section,
+  Attachment, AttachmentKind, AuditEvent, ItemStatus, Nda, ReviewDetail,
+  ReviewSectionScore, ReviewStatus, Section,
 } from "../api/types";
+
+const KIND_LABEL: Record<AttachmentKind, string> = {
+  Nda: "Signed NDA", Soc2: "SOC 2", Iso27001: "ISO 27001",
+  Dpa: "DPA", PenTest: "Pen test", Other: "Other",
+};
+const KIND_OPTS = Object.keys(KIND_LABEL) as AttachmentKind[];
+
+function fmtSize(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
 
 const SCORES: { value: ItemStatus; label: string; color: string }[] = [
   { value: "Pass", label: "Pass", color: STATUS.pass },
@@ -38,6 +51,18 @@ export function ReviewEditor() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Evidence documents + per-review history.
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [history, setHistory] = useState<AuditEvent[]>([]);
+  const [uploadKind, setUploadKind] = useState<AttachmentKind>("Soc2");
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const reloadDocs = useCallback(() => {
+    api.attachments(id).then(setAttachments).catch(() => { /* non-fatal */ });
+    api.reviewAudit(id).then(setHistory).catch(() => { /* non-fatal */ });
+  }, [id]);
+
   // Load review + section catalog.
   useEffect(() => {
     let cancelled = false;
@@ -48,6 +73,7 @@ export function ReviewEditor() {
         setCatalog(secs);
         setReview(r);
         setSections(buildSections(r, secs, includedIdsFor(r.categoryId)));
+        reloadDocs();
       })
       .catch((e: unknown) => !cancelled && setError(e instanceof Error ? e.message : String(e)))
       .finally(() => !cancelled && setLoading(false));
@@ -180,6 +206,28 @@ export function ReviewEditor() {
     catch (e) { toast(e instanceof Error ? e.message : "Reminder failed"); }
   }
 
+  async function onUpload(file: File) {
+    setUploading(true);
+    try {
+      await api.uploadAttachment(id, file, uploadKind);
+      toast(`Uploaded ${file.name}`);
+      reloadDocs();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+  async function download(a: Attachment) {
+    try { triggerDownload(await api.attachmentBlob(id, a.id), a.fileName); }
+    catch (e) { toast(e instanceof Error ? e.message : "Download failed"); }
+  }
+  async function removeAttachment(a: Attachment) {
+    try { await api.deleteAttachment(id, a.id); toast(`Removed ${a.fileName}`); reloadDocs(); }
+    catch (e) { toast(e instanceof Error ? e.message : "Delete failed"); }
+  }
+
   const memoReview = useMemo<ReviewDetail | null>(
     () => (review ? { ...review, sections } : null),
     [review, sections],
@@ -255,6 +303,46 @@ export function ReviewEditor() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <Field label="Contact name"><input style={inputStyle} value={review.ndaContactName ?? ""} onChange={(e) => set("ndaContactName", e.target.value)} /></Field>
             <Field label="Contact email"><input style={inputStyle} value={review.ndaContactEmail ?? ""} onChange={(e) => set("ndaContactEmail", e.target.value)} /></Field>
+          </div>
+        </Card>
+
+        {/* Evidence & documents */}
+        <Card style={{ padding: 18, marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
+            <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 16 }}>Evidence &amp; documents</div>
+            <div style={{ flex: 1 }} />
+            <span style={{ fontSize: 12, color: "var(--faint)" }}>encrypted at rest · max 15&nbsp;MB</span>
+          </div>
+          {attachments.length === 0 ? (
+            <div style={{ color: "var(--muted)", fontSize: 13, marginBottom: 12 }}>
+              No documents yet. Attach the signed NDA, SOC 2 / ISO 27001 report, DPA or pen-test report.
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+              {attachments.map((a) => (
+                <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10, borderTop: "1px solid var(--line)", paddingTop: 8 }}>
+                  <Pill color="var(--brandA)">{KIND_LABEL[a.kind]}</Pill>
+                  <button onClick={() => void download(a)} title="Download"
+                    style={{ background: "none", border: "none", padding: 0, color: "var(--text)", fontWeight: 600, cursor: "pointer", textAlign: "left", flex: 1, textDecoration: "underline" }}>
+                    {a.fileName}
+                  </button>
+                  <span style={{ fontSize: 12, color: "var(--muted)" }}>{fmtSize(a.sizeBytes)}</span>
+                  <span style={{ fontSize: 12, color: "var(--faint)" }}>{a.uploadedByName} · {new Date(a.uploadedUtc).toLocaleDateString()}</span>
+                  <button onClick={() => void removeAttachment(a)} title="Remove"
+                    style={{ background: "none", border: "none", color: STATUS.blocker, cursor: "pointer", fontSize: 16, lineHeight: 1 }}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <select value={uploadKind} onChange={(e) => setUploadKind(e.target.value as AttachmentKind)} style={{ ...inputStyle, width: "auto" }}>
+              {KIND_OPTS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
+            </select>
+            <input ref={fileRef} type="file" style={{ display: "none" }}
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) void onUpload(f); }} />
+            <Button variant="soft" disabled={uploading} onClick={() => fileRef.current?.click()}>
+              {uploading ? "Uploading…" : "Upload document"}
+            </Button>
           </div>
         </Card>
 
@@ -352,6 +440,26 @@ export function ReviewEditor() {
           <textarea value={review.recommendation ?? ""} onChange={(e) => set("recommendation", e.target.value)}
             placeholder="Your recommendation…" style={{ ...inputStyle, minHeight: 80, resize: "vertical" }} />
           {!isAdmin && <div style={{ fontSize: 12, color: "var(--faint)", marginTop: 8 }}>Verdict is computed by the platform. Leadership signs off.</div>}
+        </Card>
+
+        {/* History (audit trail for this review) */}
+        <Card style={{ padding: 18, marginBottom: 24 }}>
+          <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 16, marginBottom: 10 }}>History</div>
+          {history.length === 0 ? (
+            <div style={{ color: "var(--muted)", fontSize: 13 }}>No recorded activity yet. Sign-off, finish, reminders and document changes appear here.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {history.map((h) => (
+                <div key={h.id} style={{ display: "flex", gap: 10, borderTop: "1px solid var(--line)", paddingTop: 10 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 999, background: "var(--brandA)", marginTop: 6, flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, color: "var(--text)" }}>{h.summary ?? h.action}</div>
+                    <div style={{ fontSize: 12, color: "var(--faint)" }}>{h.actorName} · {h.actorRole} · {new Date(h.utc).toLocaleString()}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
       </div>
 

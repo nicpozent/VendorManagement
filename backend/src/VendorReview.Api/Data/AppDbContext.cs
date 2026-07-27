@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using VendorReview.Api.Domain;
 using VendorReview.Api.Services;
@@ -23,6 +24,7 @@ public class AppDbContext : DbContext
     public DbSet<Setting> Settings => Set<Setting>();
     public DbSet<AppUser> AppUsers => Set<AppUser>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
+    public DbSet<Attachment> Attachments => Set<Attachment>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -57,6 +59,20 @@ public class AppDbContext : DbContext
 
         b.Entity<AppUser>().HasIndex(u => u.EntraObjectId).IsUnique();
         b.Entity<AuditEvent>().HasIndex(a => a.Utc);
+
+        b.Entity<Review>()
+            .HasMany(r => r.Attachments).WithOne()
+            .HasForeignKey(a => a.ReviewId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<Attachment>().HasIndex(a => a.ReviewId);
+        // Attachment bytes encrypted at rest (AES-256-GCM), stored as bytea. The value
+        // comparer keeps change-tracking correct for the byte[] payload.
+        var bytesComparer = new ValueComparer<byte[]>(
+            (a, c) => ReferenceEquals(a, c) || (a != null && c != null && a.SequenceEqual(c)),
+            v => v == null ? 0 : v.Length,
+            v => v);
+        b.Entity<Attachment>().Property(a => a.Data)
+            .HasConversion(new EncryptedBytesConverter(), bytesComparer)
+            .HasColumnType("bytea");
 
         // Personal-data columns encrypted at rest (AES-256-GCM) via a value converter.
         // Stored as `text` because ciphertext is longer than the plaintext limits.

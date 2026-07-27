@@ -36,11 +36,20 @@ export interface Policy {
   severity: Severity; weight: Weight; active: boolean;
 }
 
+export type RenewalState = "NotApplicable" | "Unknown" | "Current" | "DueSoon" | "Overdue";
+
 export interface Vendor {
   id: string; name: string; category: string; contactName: string;
   contactEmail: string; nda: Nda; status: VendorStatus;
   lastReview: string | null; rejectedOn: string | null;
   rejectedReason: string | null; ownerName: string | null;
+  nextReviewDue: string | null; renewalState: RenewalState;
+}
+
+export type AttachmentKind = "Nda" | "Soc2" | "Iso27001" | "Dpa" | "PenTest" | "Other";
+export interface Attachment {
+  id: string; reviewId: string; fileName: string; contentType: string;
+  sizeBytes: number; kind: AttachmentKind; uploadedByName: string; uploadedUtc: string;
 }
 
 export interface ReviewListItem {
@@ -99,7 +108,7 @@ export interface ArchiveItem {
 }
 export interface ArchiveDetail { header: ArchiveItem; memoMarkdown: string; }
 
-export interface Settings { blockerCapsVerdict: boolean; }
+export interface Settings { blockerCapsVerdict: boolean; reviewIntervalMonths: number; }
 
 export interface AppUser {
   id: string; entraObjectId: string; displayName: string; email: string | null;

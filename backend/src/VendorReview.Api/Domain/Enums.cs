@@ -21,3 +21,9 @@ public enum VendorStatus { Approved, Rejected }
 
 /// <summary>View-hint role. The API enforces real authorisation; the client only uses this for display.</summary>
 public enum AppRole { ITManager, CioCto, Cfo }
+
+/// <summary>Kind of evidence document attached to a review.</summary>
+public enum AttachmentKind { Nda, Soc2, Iso27001, Dpa, PenTest, Other }
+
+/// <summary>Computed re-review status for an approved vendor.</summary>
+public enum RenewalState { NotApplicable, Unknown, Current, DueSoon, Overdue }
