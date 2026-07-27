@@ -18,7 +18,7 @@ const msalConfig: Configuration = {
     authority: `https://login.microsoftonline.com/${tenantId}`,
     redirectUri: window.location.origin,
   },
-  cache: { cacheLocation: "localStorage", storeAuthStateInCookie: false },
+  cache: { cacheLocation: "localStorage" },
 };
 
 export const pca: PublicClientApplication | null = ENTRA_CONFIGURED
