@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using Microsoft.EntityFrameworkCore;
 using VendorReview.Api.Auth;
 using VendorReview.Api.Data;
@@ -63,10 +64,13 @@ public static class VendorEndpoints
                 return Results.BadRequest(new { message = $"Recipient domain is not on the mail allowlist: {v.ContactEmail}" });
 
             var cc = string.IsNullOrWhiteSpace(me.Email) ? Array.Empty<string>() : new[] { me.Email! };
+            // HTML-encode vendor-controlled values interpolated into the mail body.
+            var contactHtml = HtmlEncoder.Default.Encode(v.ContactName);
+            var nameHtml = HtmlEncoder.Default.Encode(v.Name);
             await graph.SendMailAsync(
                 new[] { v.ContactEmail }, cc,
                 $"NDA for review — {v.Name}",
-                $"<p>Hi {v.ContactName},</p><p>Please find attached the mutual NDA required before our technical review of {v.Name}. Kindly sign and return.</p><p>Birgma International — Global IT Infrastructure</p>",
+                $"<p>Hi {contactHtml},</p><p>Please find attached the mutual NDA required before our technical review of {nameHtml}. Kindly sign and return.</p><p>Birgma International — Global IT Infrastructure</p>",
                 ct);
 
             if (v.Nda == NdaStatus.None) v.Nda = NdaStatus.Requested;
