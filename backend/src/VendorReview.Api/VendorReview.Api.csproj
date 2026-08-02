@@ -12,8 +12,8 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.Identity.Web" Version="4.13.2" />
-    <PackageReference Include="Microsoft.Identity.Web.GraphServiceClient" Version="4.13.2" />
+    <PackageReference Include="Microsoft.Identity.Web" Version="4.14.2" />
+    <PackageReference Include="Microsoft.Identity.Web.GraphServiceClient" Version="4.14.2" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
   </ItemGroup>
